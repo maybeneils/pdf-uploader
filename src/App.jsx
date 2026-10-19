@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import Navbar from './components/Navbar';
 import StatsBar from './components/StatsBar';
 import DropZone from './components/DropZone';
@@ -8,6 +8,8 @@ import ToastContainer from './components/ToastContainer';
 import { Search, FolderOpen, ArrowUpDown, Filter, Sparkles } from 'lucide-react';
 import { getFileType, isValidDocument, formatBytes } from './utils/fileHelpers';
 import './App.css';
+
+const WEBHOOK_URL = 'https://saqibayaz.app.n8n.cloud/webhook/pdf-uploader';
 
 // Sample demo documents so the uploader has rich interactive state on launch
 const INITIAL_DEMO_FILES = [
@@ -20,6 +22,7 @@ const INITIAL_DEMO_FILES = [
     progress: 100,
     timestamp: Date.now() - 3600000 * 2,
     url: null,
+    rawFile: null,
   },
   {
     id: 'demo-doc-2',
@@ -30,6 +33,7 @@ const INITIAL_DEMO_FILES = [
     progress: 100,
     timestamp: Date.now() - 3600000 * 5,
     url: null,
+    rawFile: null,
   },
 ];
 
@@ -65,6 +69,79 @@ export default function App() {
   const dismissToast = (id) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
+
+  // Upload file directly to n8n Webhook
+  const uploadFileToWebhook = useCallback((fileItem) => {
+    const { rawFile, id, name } = fileItem;
+    if (!rawFile) return;
+
+    const formData = new FormData();
+    // Providing both 'file' and 'data' fields for seamless n8n compatibility
+    formData.append('file', rawFile, name);
+    formData.append('data', rawFile, name);
+    formData.append('fileName', name);
+    formData.append('fileSize', rawFile.size.toString());
+    formData.append(
+      'fileType',
+      rawFile.type ||
+        (name.toLowerCase().endsWith('.pdf')
+          ? 'application/pdf'
+          : 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
+    );
+    formData.append('uploadedAt', new Date().toISOString());
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', WEBHOOK_URL);
+
+    // Track real network upload progress
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        const percent = Math.min(
+          95,
+          Math.round((event.loaded / event.total) * 100)
+        );
+        setFiles((prev) =>
+          prev.map((f) => (f.id === id ? { ...f, progress: percent } : f))
+        );
+      }
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === id
+              ? { ...f, progress: 100, status: 'completed', errorMessage: null }
+              : f
+          )
+        );
+        addToast(`"${name}" successfully sent to webhook!`, 'success');
+      } else {
+        const err = `HTTP ${xhr.status}`;
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.id === id ? { ...f, status: 'error', errorMessage: err } : f
+          )
+        );
+        addToast(`Failed to send "${name}" to webhook (${err})`, 'error');
+      }
+    };
+
+    xhr.onerror = () => {
+      const err = 'Network/CORS error';
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.id === id ? { ...f, status: 'error', errorMessage: err } : f
+        )
+      );
+      addToast(
+        `Error sending "${name}". Make sure your n8n workflow is Active/Listening.`,
+        'error'
+      );
+    };
+
+    xhr.send(formData);
+  }, []);
 
   // Upload and process incoming files
   const handleFilesSelected = (incomingFiles) => {
@@ -115,39 +192,31 @@ export default function App() {
         progress: 10,
         timestamp: Date.now(),
         url: objectUrl,
+        errorMessage: null,
       };
 
       setFiles((prev) => [newFileItem, ...prev]);
       addedCount += 1;
 
-      // Simulate smooth upload progression
-      let currentProgress = 15;
-      const interval = setInterval(() => {
-        currentProgress += Math.floor(Math.random() * 20) + 15;
-
-        if (currentProgress >= 100) {
-          clearInterval(interval);
-          setFiles((prev) =>
-            prev.map((f) =>
-              f.id === fileId
-                ? { ...f, progress: 100, status: 'completed' }
-                : f
-            )
-          );
-          addToast(`"${file.name}" uploaded successfully!`, 'success');
-        } else {
-          setFiles((prev) =>
-            prev.map((f) =>
-              f.id === fileId ? { ...f, progress: currentProgress } : f
-            )
-          );
-        }
-      }, 140);
+      // Send to n8n Webhook
+      uploadFileToWebhook(newFileItem);
     });
 
     if (addedCount > 0) {
       setActiveFilter('all');
     }
+  };
+
+  // Retry failed upload
+  const handleRetry = (fileItem) => {
+    setFiles((prev) =>
+      prev.map((f) =>
+        f.id === fileItem.id
+          ? { ...f, status: 'uploading', progress: 10, errorMessage: null }
+          : f
+      )
+    );
+    uploadFileToWebhook(fileItem);
   };
 
   // Preview Handler
@@ -166,7 +235,7 @@ export default function App() {
       document.body.removeChild(a);
       addToast(`Downloading "${file.name}"...`, 'info');
     } else {
-      // Fallback for demo file or mock data
+      // Fallback for demo file
       const blob = new Blob([`Sample document content for ${file.name}`], {
         type: file.type === 'pdf' ? 'application/pdf' : 'application/msword',
       });
@@ -252,6 +321,7 @@ export default function App() {
         toggleTheme={toggleTheme}
         onClearAll={handleClearAll}
         fileCount={files.length}
+        webhookUrl={WEBHOOK_URL}
       />
 
       {/* Metrics & Statistics */}
@@ -350,6 +420,7 @@ export default function App() {
                 onDownload={handleDownload}
                 onDelete={handleDelete}
                 onCopyInfo={handleCopyInfo}
+                onRetry={handleRetry}
               />
             ))}
           </div>
@@ -362,7 +433,7 @@ export default function App() {
             <p>
               {searchQuery
                 ? `No files matching "${searchQuery}". Try adjusting your search or filters.`
-                : 'Drag and drop your PDF or Word documents above to get started.'}
+                : 'Drag and drop your PDF or Word documents above to upload and send to webhook.'}
             </p>
           </div>
         )}

@@ -8,17 +8,19 @@ import {
   Copy,
   Clock,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  RefreshCw,
+  Send
 } from 'lucide-react';
 import { formatBytes, formatDate } from '../utils/fileHelpers';
 
-export default function FileCard({ file, onPreview, onDownload, onDelete, onCopyInfo }) {
+export default function FileCard({ file, onPreview, onDownload, onDelete, onCopyInfo, onRetry }) {
   const isPdf = file.type === 'pdf';
   const isUploading = file.status === 'uploading';
   const isError = file.status === 'error';
 
   return (
-    <div className="file-card animate-fade-in">
+    <div className={`file-card animate-fade-in ${isError ? 'file-card-error' : ''}`}>
       <div className="file-card-main">
         <div className="file-info-group">
           <div className={`file-type-icon ${isPdf ? 'pdf' : 'word'}`}>
@@ -38,14 +40,31 @@ export default function FileCard({ file, onPreview, onDownload, onDelete, onCopy
               <span>•</span>
               <span className={`status-badge ${file.status}`}>
                 {file.status === 'completed' && <CheckCircle2 size={12} style={{ display: 'inline', marginRight: 3 }} />}
+                {file.status === 'uploading' && <Send size={11} style={{ display: 'inline', marginRight: 3 }} />}
                 {file.status === 'error' && <AlertCircle size={12} style={{ display: 'inline', marginRight: 3 }} />}
-                {file.status}
+                {file.status === 'completed' ? 'Sent to Webhook' : file.status}
               </span>
+              {file.errorMessage && (
+                <span className="error-note" title={file.errorMessage}>
+                  ({file.errorMessage})
+                </span>
+              )}
             </div>
           </div>
         </div>
 
         <div className="file-actions">
+          {isError && file.rawFile && (
+            <button
+              className="icon-btn retry"
+              onClick={() => onRetry(file)}
+              title="Retry sending to Webhook"
+              aria-label="Retry"
+            >
+              <RefreshCw size={16} />
+            </button>
+          )}
+
           <button
             className="icon-btn preview"
             onClick={() => onPreview(file)}

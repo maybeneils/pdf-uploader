@@ -843,3 +843,41 @@
     justify-content: space-between;
   }
 }
+
+/* Webhook Badge in Header */
+.webhook-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #10b981;
+  font-size: 0.775rem;
+  font-weight: 600;
+  padding: 0.45rem 0.85rem;
+  border-radius: 20px;
+}
+
+.webhook-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background-color: #10b981;
+  box-shadow: 0 0 8px #10b981;
+  animation: pulseGlow 1.8s infinite;
+}
+
+.file-card-error {
+  border-color: rgba(239, 68, 68, 0.35) !important;
+}
+
+.icon-btn.retry:hover {
+  color: var(--accent-primary);
+  background: var(--accent-glow);
+}
+
+.error-note {
+  color: var(--danger-color);
+  font-size: 0.725rem;
+  font-family: var(--font-mono);
+}

@@ -1,7 +1,7 @@
 import React from 'react';
-import { Files, Moon, Sun, Trash2 } from 'lucide-react';
+import { Files, Moon, Sun, Trash2, Webhook } from 'lucide-react';
 
-export default function Navbar({ theme, toggleTheme, onClearAll, fileCount }) {
+export default function Navbar({ theme, toggleTheme, onClearAll, fileCount, webhookUrl }) {
   return (
     <header className="navbar">
       <div className="brand">
@@ -15,6 +15,14 @@ export default function Navbar({ theme, toggleTheme, onClearAll, fileCount }) {
       </div>
 
       <div className="nav-actions">
+        {webhookUrl && (
+          <div className="webhook-badge" title={`Auto-forwarding uploads to: ${webhookUrl}`}>
+            <span className="webhook-dot"></span>
+            <Webhook size={14} />
+            <span className="webhook-text">n8n Webhook Connected</span>
+          </div>
+        )}
+
         {fileCount > 0 && (
           <button
             className="action-btn danger"
